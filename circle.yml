@@ -1,26 +1,73 @@
-general:
-  branches:
-    ignore:
-      - master
+version: 2
+jobs:
+  build_image:
+    docker:
+      - image: vidsyhq/go-builder:latest
+        environment:
+          BUILD: false
+    steps:
+      - checkout
+  check_version:
+    docker:
+      - image: buildpack-deps:trusty
+    steps:
+      - checkout
+      - run: make check-version
+  check_for_clubhouse_ticket_comment:
+    docker:
+      - image: vidsyhq/cli:latest
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - run: cli github check-comment --url=$CIRCLE_PULL_REQUEST --token=$VIDSY_BOT_GITHUB_TOKEN --text-contains=https://app.clubhouse.io/vidsy/story
+  deploy:
+    docker:
+      - image: alpine
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Install Docker client
+          command: |
+            set -x
+            VER="18.03.1-ce"
+            curl -L -o /tmp/docker-$VER.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$VER.tgz
+            tar -xz -C /tmp -f /tmp/docker-$VER.tgz
+            mv /tmp/docker/* /usr/bin
+      - run: make build-image
+      - deploy:
+          name: deploy
+          command: |
+            make push-to-ecr
+            make push-to-docker-hub
 
-machine:
-  services:
-    - docker
-
-dependencies:
-  override:
-    - make build-image
-
-test:
-  override:
-    - echo "n/a"
-
-deployment:
-  feature-branch:
-    branch: /^((?!master).)*$/
-    commands:
-      - make check-version
-  hub:
-    tag: /[0-9]+\.[0-9]+\.[0-9]+/
-    commands:
-      - make push-to-registry -e DOCKER_EMAIL=$DOCKER_EMAIL -e DOCKER_USER=$DOCKER_USER -e DOCKER_PASS=$DOCKER_PASS -e CIRCLE_TAG=$CIRCLE_TAG
+workflows:
+  version: 2
+  build_deploy:
+    jobs:
+      - build_image:
+          filters:
+            tags:
+              only: /[0-9]+\.[0-9]+\.[0-9]+/
+            branches:
+              ignore: master
+      - check_version:
+          filters:
+            branches:
+              ignore: master
+      - check_for_clubhouse_ticket_comment:
+          context: org-github-docker-hub
+          filters:
+            branches:
+              ignore: master
+      - deploy:
+          requires:
+            - build_image
+            - check_version
+          filters:
+            tags:
+              only:
+                - /[0-9]+\.[0-9]+\.[0-9]+/
+            branches:
+              ignore: /.*/
