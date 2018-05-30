@@ -1,6 +1,6 @@
 version: 2
 jobs:
-  build:
+  build_image:
     docker:
       - image: vidsyhq/go-builder:latest
         environment:
@@ -46,7 +46,7 @@ workflows:
   version: 2
   build_deploy:
     jobs:
-      - build:
+      - build_image:
           filters:
             tags:
               only: /[0-9]+\.[0-9]+\.[0-9]+/
@@ -64,7 +64,6 @@ workflows:
       - deploy:
           requires:
             - build_image
-            - test
             - check_version
           filters:
             tags:
