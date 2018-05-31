@@ -26,6 +26,7 @@ jobs:
       - image: alpine
     steps:
       - checkout
+      - run: apk update && apk add make py-pip curl tar && pip install awscli
       - setup_remote_docker
       - run:
           name: Install Docker client
