@@ -63,6 +63,7 @@ workflows:
             branches:
               ignore: master
       - deploy:
+          context: org-aws-ecr
           requires:
             - build_image
             - check_version
